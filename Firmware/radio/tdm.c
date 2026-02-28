@@ -42,6 +42,7 @@
 #include "freq_hopping.h"
 #include "crc.h"
 #include "serial.h"
+#include "bind.h"       // 对频模块
 
 #ifdef INCLUDE_AES
 #include "AES/aes.h"
@@ -381,6 +382,12 @@ static void
 link_update(void)
 {
   static uint8_t unlock_count = 10, temperature_count;
+
+  // 对频模式下 LED 由 bind 模块全权控制，此处直接返回
+  if (bind_mode_active()) {
+    return;
+  }
+
   if (received_packet) {
     unlock_count = 0;
     received_packet = false;
@@ -527,7 +534,16 @@ tdm_serial_loop(void)
     if (pdata_canary != 0x41) {
       panic("pdata canary changed\n");
     }
-    
+
+    // 对频按键扫描（每次循环必须执行，不受 continue 影响）
+    bind_check_button();
+
+    // 对频模式下跳过全部 TDM 逻辑，由 bind_tick() 独占接管射频
+    if (bind_mode_active()) {
+      bind_tick();
+      continue;
+    }
+
     // give the AT command processor a chance to handle a command
     at_command();
     

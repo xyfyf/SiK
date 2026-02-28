@@ -104,6 +104,7 @@ SBIT(LED_RED,	   SFR_P1, 6);
 SBIT(LED_GREEN,	   SFR_P1, 5);
 SBIT(PIN_CONFIG,   SFR_P0, 2);
 SBIT(PIN_ENABLE,   SFR_P0, 3);
+SBIT(PIN_BIND,     SFR_P1, 7);  // 对频按键：P1.7 (Pin 8)，低电平有效
 
 // Signal polarity definitions
 #define LED_ON		0
@@ -115,6 +116,7 @@ SBIT(PIN_ENABLE,   SFR_P0, 3);
 #define LED_RADIO	LED_GREEN
 #define LED_ACTIVITY	LED_RED
 #define BUTTON_BOOTLOAD	PIN_CONFIG
+#define BUTTON_BIND     PIN_BIND    // 对频按键逻辑映射
 
 // Serial flow control
 #define SERIAL_RTS	PIN_ENABLE	// always an input
@@ -128,7 +130,10 @@ SBIT(PIN_ENABLE,   SFR_P0, 3);
 		P0MDOUT |=  0x04;               /* CTS pushpull */ \
 		P0MDOUT &=  ~0x08;              /* RTS open drain */ \
 		P0DRV   &= ~0x04;               /* CTS low drive */ \
-		P1SKIP  |=  0x60;		/* LEDs */	\
+		P1SKIP  |=  0xE0;		/* LEDs + P1.7 BIND 跳过 Crossbar */ \
+		P1MDIN  |=  0x80;		/* P1.7 数字输入模式 */		\
+		P1MDOUT &= ~0x80;		/* P1.7 开漏（输入）*/		\
+		P1      |=  0x80;		/* P1.7 内部弱上拉使能 */	\
 		SFRPAGE	 =  CONFIG_PAGE;			\
 		P1DRV	|=  0x60;		/* LEDs */	\
 		SFRPAGE	 =  LEGACY_PAGE;			\

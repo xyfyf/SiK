@@ -62,13 +62,14 @@ enum ParamID {
 	PARAM_MANCHESTER,		// enable manchester encoding
 	PARAM_RTSCTS,			// enable hardware flow control
 	PARAM_MAX_WINDOW,		// The maximum window size allowed
+	PARAM_BIND_ROLE,		// 对频角色: 0=从机(监听), 1=主机(广播)
 #ifdef INCLUDE_AES
   PARAM_ENCRYPTION,     // no Enycryption (0), 128 or 256 bit key
 #endif
 	PARAM_MAX				// must be last
 };
 
-#define PARAM_FORMAT_CURRENT	0x1aUL				///< current parameter format ID
+#define PARAM_FORMAT_CURRENT	0x1bUL	///< 新增 PARAM_BIND_ROLE，版本号 +1
 
 /// Parameter type.
 ///

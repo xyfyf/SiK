@@ -417,12 +417,13 @@ if __name__ == '__main__':
     if args.forceBanking:
         fw.bankingDeteted = True
 
+    # On Windows, COM ports like COM64 or \\.\COM64 are not file paths and
+    # glob.glob() cannot match them. Fall back to using the port string directly.
     ports = glob.glob(args.port)
     if not ports:
-        print(("No matching ports for %s" % args.port))
-        sys.exit(1)
+        ports = [args.port]
     # Connect to the device and identify it
-    for port in glob.glob(args.port):
+    for port in ports:
         print(("uploading to port %s" % port))
         up = Uploader(port, atbaudrate=args.baudrate, use_mavlink=args.mavlink,
                       mavport=args.mavport, debug=args.debug)

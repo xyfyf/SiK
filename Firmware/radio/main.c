@@ -41,6 +41,7 @@
 #include "tdm.h"
 #include "timer.h"
 #include "freq_hopping.h"
+#include "bind.h"       // 对频模块
 
 #ifdef INCLUDE_AES
 #include "AES/aes.h"
@@ -138,7 +139,10 @@ main(void)
 #if PIN_MAX > 0
 	pins_user_init();
 #endif
-	
+
+	// 初始化对频模块（在 hardware_init 和 radio_init 完成后调用）
+	bind_init();
+
 #ifdef INCLUDE_AES
 	// Initialise Encryption
 	if (! aes_init(param_get(PARAM_ENCRYPTION))) {

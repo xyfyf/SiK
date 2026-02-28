@@ -37,6 +37,7 @@
 #include "flash_layout.h"
 #include "at.h"
 #include "board.h"
+#include "bind.h"       // 对频模块（ATB 指令）
 
 #ifdef INCLUDE_AES
 #include "AES/aes.h"
@@ -257,6 +258,12 @@ at_command(void)
 			case 'S':
 				at_s();
 				break;
+			case 'B':
+				// ATB → 进入对频模式（等效于长按对频按键）
+				bind_enter_from_at();
+				at_ok();
+				break;
+
 			case 'Z':
 				// generate a software reset
 				RSTSRC |= (1 << 4);

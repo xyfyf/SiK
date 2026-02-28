@@ -70,6 +70,7 @@ __code const struct parameter_info {
 	{"MANCHESTER",      0},
 	{"RTSCTS",          0},
 	{"MAX_WINDOW",    131},
+	{"BIND_ROLE",       0}, // 对频角色默认为从机（0=监听，1=广播）
 #ifdef INCLUDE_AES
 	{"ENCRYPTION_LEVEL", 0}, // no Enycryption (0), 128 or 256 bit key
 #endif
@@ -164,6 +165,12 @@ param_check(__pdata enum ParamID id, __data uint32_t val)
 		// which is the maximum we can handle with a 13
 		// bit trailer for window remaining
 		if (val > 131)
+			return false;
+		break;
+
+	case PARAM_BIND_ROLE:
+		// 0=从机（监听对频包），1=主机（广播参数表）
+		if (val > 1)
 			return false;
 		break;
 
