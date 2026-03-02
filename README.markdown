@@ -1,113 +1,116 @@
-SiK
-=====
-Firmware for SiLabs Si1000 - Si102x/3x/6x ISM radios
+# SiK — 一键对频版本
 
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/ArduPilot/SiK?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+本仓库基于 [ArduPilot/SiK](https://github.com/ArduPilot/SiK) 修改，在原有 SiK 无线电固件基础上新增了**一键对频（Bind Button）功能**，使两台 HM-TRP 模块无需上位机即可完成参数同步，实现类似 ELRS 的物理按键对频体验。
 
-SiK is a collection of firmware and tools for radios based on the cheap, versatile SiLabs Si1000 and Si1060 SoC.
+---
 
-## Branch Build Status
-[![Build Status](http://jenkins.hovo.id.au/buildStatus/icon?job=SiK)](http://jenkins.hovo.id.au/job/SiK/)
+## 新增功能：一键对频
 
-## Documentation
-For user documentation please see [ardupilot docs](http://ardupilot.org/copter/docs/common-sik-telemetry-radio.html)
+### 工作原理
 
-Currently, it supports the following boards:
+两台模块同时长按对频按键（≥3 秒），主机广播完整参数表，从机接收并覆盖本机参数后自动复位，对频完成。
 
- - HopeRF HM-TRP
- - HopeRF RF50-DEMO
- - RFD900
- - RFD900u
- - RFD900p
- - [MLAB ISM01A](https://www.mlab.cz/module/ISM01A)
+| 角色 | 行为 |
+|------|------|
+| 主机（`ATS16=1`）| 广播本机完整参数（NETID、AIR_SPEED、频率范围等） |
+| 从机（`ATS16=0`，默认）| 监听主机广播，验证通过后覆盖本机参数并复位 |
 
-Adding support for additional boards should not be difficult.
+### LED 状态指示
 
-Currently the firmware components include:
+| 状态 | LED 表现 |
+|------|----------|
+| 对频中 | 红绿交替快闪（200ms/次） |
+| 对频成功 | 绿灯常亮 1 秒，然后自动复位 |
+| 对频超时（30秒） | 自动退出，恢复正常工作 |
 
- - A bootloader with support for firmware upgrades over the serial interface.
- - Radio firmware with support for parsing AT commands, storing parameters and FHSS/TDM functionality
+### 新增 AT 指令
 
-### AT commands
+| 指令 | 功能 |
+|------|------|
+| `ATB` | 通过串口触发对频（等效于长按按键） |
+| `ATS16=0` | 设置为从机角色（默认，接收参数） |
+| `ATS16=1` | 设置为主机角色（发送参数） |
 
-|Command| Variants| Function |
-|-------|--------|----------|
-|+++    | |Entering bootloader mode. Could be tested by sending AT, reply should be OK|
-|RT     | |remote AT command - send it to the tdm, system to send to the remote radio |
-|AT&F   | |  Restore default parameters |
-|AT&W| | Write parameters to the flash memory | 
-|AT&U | | Erase Flash signature forcing it into reprogram mode next reset |
-|AT&P | | TDM change phase |
-|AT&T | AT&T <br> AT&T=RSSI <br> AT&T=TDM |  disable all test modes <br> display RSSI stats <br> display TDM debug ) |
-|AT&E | AT&E?  <br> AT&E= | Print_encryption_key <br> Set encryption key | 
-|AT+ | AT+P= <br> AT+Cx=y <br> AT+Fx? <br> AT+L <br> AT+A |  set power level pwm to x immediately <br>  write calibration value <br> get calibration value <br> lock bootloader area if all calibrations written <br> RFD900 antenna diversity  |
-|ATI0| | banner_string |
-|ATI1| | version_string  |
-|ATI2| | BOARD_ID |
-|ATI3| | Board design frequency|
-|ATI4| | Board boot loader version|
-|ATI5| | Parameters |
-|ATI6| | TDM timing |
-|ATI7| | Show RSSI |
-|ATP |  ATPx=O <br> ATPx=I <br> ATPx=R <br> ATPx=Cx | Set pin to output, turn mirroring off pulling pin to ground    |
-|ATO | |    |
-|ATS | ATS? <br> ATS= | <br> Set a parameter  |
-|ATZ | | Generate a software reset    |
+---
 
-Up to date AT command processig is located in [at.c](Firmware/radio/at.c) source code.
+## 硬件要求（HM-TRP 板）
 
-## What You Will Need
+在 **P1.7（芯片第 8 引脚）** 增加一个对频按键，推荐外围电路：
 
- - A Mac OS X or Linux system for building.  Mac users will need the Developer Tools (Xcode) installed.
- - At least two Si1000 - Si102x/3x - based radio devices (just one radio by itself is not very useful).
- - A [SiLabs USB debug adapter](http://www.silabs.com/products/mcu/Pages/USBDebug.aspx).
- - [SDCC](http://sdcc.sourceforge.net/), version 3.1.0 or later.
- - [EC2Tools](https://github.com/SamwelOpiyo/ec2)
- - [Mono](http://www.mono-project.com/) to build and run the GUI firmware updater.
- - Python to run the command-line firmware updater.
+```
+VDD_3V3
+    │
+   10kΩ（上拉）
+    │
+    ├──── 100nF（到 GND，硬件去抖）
+    │
+P1.7（第8引脚）
+    │
+  按键（常开）
+    │
+   GND
+```
 
-Note that at this time, building on Windows systems is not supported.  If someone wants to contribute and maintain the necessary pieces that would be wonderful.
+> 注意：Si1000 LGA-42 封装中 P1.0~P1.4 为内部引脚，**无法引出到 PCB**，请勿使用。P1.7 已通过代码和数据手册双重验证可用。
 
-## Building Things
+---
 
-Type `make install` in the Firmware directory.  If all is well, this will produce a folder called `dst` containing bootloader and firmware images.
+## 代码修改清单
 
-If you want to fine-tune the build process, `make help` will give you more details.
+| 文件 | 修改内容 |
+|------|----------|
+| `Firmware/include/board_hm_trp.h` | 定义 `PIN_BIND`（P1.7）、`BUTTON_BIND`，配置引脚为数字输入+内部上拉 |
+| `Firmware/radio/bind.h` | 新增：对频状态枚举、对频包结构体、接口函数声明，无对频按键时退化为空宏 |
+| `Firmware/radio/bind.c` | 新增：完整对频状态机实现（按键检测、射频切换、参数广播/接收、CRC 校验、软件复位），仅在定义 `BUTTON_BIND` 时编译 |
+| `Firmware/radio/parameters.h` | 新增参数 `PARAM_BIND_ROLE`，添加防重复包含宏 |
+| `Firmware/radio/parameters.c` | 新增 `BIND_ROLE` 参数默认值及合法性校验 |
+| `Firmware/radio/main.c` | 调用 `bind_init()` 初始化对频模块 |
+| `Firmware/radio/tdm.c` | 在 TDM 主循环中插入按键扫描与对频状态机接管逻辑 |
+| `Firmware/radio/at.c` | 新增 `ATB` 指令，触发对频模式 |
 
-Building the SiK firmware generates bootloaders and firmware for each of the supported boards. Many boards are available tuned to specific frequencies, but have no way for software on the Si1000 to detect which frequency the board is configured for. In this case, the build will produce different versions of the bootloader for each board. It's important to select the correct bootloader version for your board if this is the case.
+---
 
-## Flashing and Uploading
+## 内存优化说明
 
-The SiLabs debug adapter can be used to flash both the bootloader and the firmware. Alternatively, once the bootloader has been flashed the updater application can be used to update the firmware (it's faster than flashing, too).
+- 对频包缓冲区复用射频驱动已有的 `radio_buffer`（252字节 XDATA），不额外占用内存。
+- 无对频按键的板子（如 3dr1060/Si1060）通过 `#ifdef BUTTON_BIND` 完全跳过对频代码，XDATA 占用为零，解决了 Si1060 XDATA 溢出问题。
 
-The `Firmware/tools/ec2upload` script can be used to flash either a bootloader or firmware to an attached board with the SiLabs USB debug adapter.  Further details on the connections required to flash a specific board should be found in the `Firmware/include/board_*.h` header for the board in question.
+---
 
-To use the updater application, open the `SiKUploader/SikUploader.sln` Mono solution file, build and run the application. Select the serial port connected to your radio and the appropriate firmware `.hex` file for the firmware you wish to uploader.  You will need to get the board into the bootloader; how you do this varies from board to board, but it will normally involve either holding down a button or pulling a pin high or low when the board is reset or powered on.
+## 编译方法
 
-For the supported boards:
+需要 Linux / WSL 环境：
 
- - HM-TRP: hold the CONFIG pin low when applying power to the board.
- - RF50-DEMO: hold the ENTER button down and press RST.
- - RFD900x: hold the BOOT/CTS pin low when applying power to the board.
+```bash
+# 安装依赖
+sudo apt install sdcc
 
-The uploader application contains a bidirectional serial console that can be used for interacting with the radio firmware.
+# 编译所有板子
+cd Firmware
+make
 
-As an alternative to the Mono uploader, there is a Python-based command-line upload tool in `Firmware/tools/uploader.py`.
+# 编译并输出到 dst/ 目录
+make install
+```
 
-## Supporting New Boards
+固件输出路径：
+- 主程序：`Firmware/dst/radio~hm_trp.ihx`
+- Bootloader：`Firmware/dst/bootloader~hm_trp.ihx`
 
-Take a look at `Firmware/include/board_*.h` for the details of what board support entails.  It will help to have a schematic for your board, and in the worst case, you may need to experiment a little to determine a suitable value for EZRADIOPRO_OSC_CAP_VALUE.  To set the frequency codes for your board, edit the corresponding `Firmware/include/rules_*.mk` file.
+---
 
-## Resources
+## 烧录方法
 
-SiLabs have an extensive collection of documentation, application notes and sample code available online.
+使用 SiLabs USB 调试适配器烧录 Bootloader（仅首次），之后可通过串口工具更新主程序固件：
 
-Start at the [Si1000 product page](http://www.silabs.com/products/wireless/wirelessmcu/Pages/Si1000.aspx) or [Si102x/3x product page](http://www.silabs.com/products/wireless/wirelessmcu/Pages/Si102x-3x.aspx)
+```bash
+# 命令行方式
+python Firmware/tools/uploader.py --port /dev/ttyUSB0 Firmware/dst/radio~hm_trp.ihx
+```
 
-## Reporting Problems
+---
 
-Please use the GitHub issues link at the top of the [project page](http://github.com/tridge/SiK) to report any problems with, or to make suggestions about SiK.  I encourage you to fork the project and make whatever use you may of it.
+## 原始项目
 
-## What does SiK mean?
-
-It should really be Sik, since 'K' is the SI abbreviation for Kelvin, and what I meant was 'k', i.e. 1000.  Someday I might change it.
+- 上游仓库：[ArduPilot/SiK](https://github.com/ArduPilot/SiK)
+- 芯片文档：[Si1000 Datasheet](https://www.silabs.com/documents/public/data-sheets/Si1000.pdf)
