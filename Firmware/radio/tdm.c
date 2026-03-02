@@ -383,10 +383,12 @@ link_update(void)
 {
   static uint8_t unlock_count = 10, temperature_count;
 
+#ifdef BUTTON_BIND
   // 对频模式下 LED 由 bind 模块全权控制，此处直接返回
   if (bind_mode_active()) {
     return;
   }
+#endif
 
   if (received_packet) {
     unlock_count = 0;
@@ -535,6 +537,7 @@ tdm_serial_loop(void)
       panic("pdata canary changed\n");
     }
 
+#ifdef BUTTON_BIND
     // 对频按键扫描（每次循环必须执行，不受 continue 影响）
     bind_check_button();
 
@@ -543,6 +546,7 @@ tdm_serial_loop(void)
       bind_tick();
       continue;
     }
+#endif
 
     // give the AT command processor a chance to handle a command
     at_command();
