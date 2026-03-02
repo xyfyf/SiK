@@ -54,14 +54,23 @@ struct bind_packet {
 // radio_transmit 超时：50ms = 50,000us / 16us = 3125 ticks
 #define BIND_TX_TIMEOUT_TICKS     3125U
 
-// ─── 外部可读状态 ──────────────────────────────────────────────────────────────
+// ─── 公共接口（条件编译）──────────────────────────────────────────────────────
+#ifdef BUTTON_BIND
+// 有对频按键硬件（如 hm_trp）：使用 bind.c 中的完整实现
 extern __pdata enum BindState bind_state;
-
-// ─── 公共接口 ──────────────────────────────────────────────────────────────────
-extern void bind_init(void);           // 初始化，在 main() hardware_init 后调用
-extern void bind_check_button(void);   // 按键扫描，在 TDM 主循环每次调用
-extern bool bind_mode_active(void);    // 返回 true 表示正处于对频模式
-extern void bind_tick(void);           // 对频状态机，对频模式下替代 TDM 逻辑
-extern void bind_enter_from_at(void);  // AT 指令（ATB）触发入口
+extern void bind_init(void);
+extern void bind_check_button(void);
+extern bool bind_mode_active(void);
+extern void bind_tick(void);
+extern void bind_enter_from_at(void);
+#else
+// 无对频按键硬件（如 3dr1060 / Si1060）：所有接口退化为零开销宏
+// 不占用任何 XDATA/PDATA，彻底避免 Si1060 XDATA 溢出
+#define bind_init()          do {} while(0)
+#define bind_mode_active()   (0)
+#define bind_check_button()  do {} while(0)
+#define bind_tick()          do {} while(0)
+#define bind_enter_from_at() do {} while(0)
+#endif // BUTTON_BIND
 
 #endif // _BIND_H_

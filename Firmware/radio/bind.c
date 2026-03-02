@@ -19,6 +19,10 @@
 #include "freq_hopping.h"   // fhop_init()
 #include "bind.h"
 
+// 无 BUTTON_BIND 定义的板子（如 3dr1060/Si1060）整个实现体为空，
+// 接口由 bind.h 中的宏提供，彻底零 XDATA 占用。
+#ifdef BUTTON_BIND
+
 // 复用射频驱动内部的收发缓冲区（已在 XDATA，252字节）
 // 对频模式与 TDM 模式互斥，radio_buffer 在对频期间空闲，可安全覆盖使用
 // 避免额外申请 ~77 字节 XDATA，防止 Si1060（XDATA 仅 2KB）溢出
@@ -351,3 +355,5 @@ bind_enter_from_at(void)
         bind_enter();
     }
 }
+
+#endif // BUTTON_BIND
