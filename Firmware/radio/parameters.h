@@ -32,6 +32,9 @@
 /// Definitions for program parameter storage.
 ///
 
+#ifndef _PARAMETERS_H_
+#define _PARAMETERS_H_
+
 /// Parameter IDs.
 ///
 /// Parameter IDs here match AT S-register numbers, so change them with extreme
@@ -159,3 +162,5 @@ extern bool param_set_encryption_key(__xdata unsigned char *key);
 ///
 extern void print_encryption_key();
 #endif // INCLUDE_AES
+
+#endif // _PARAMETERS_H_

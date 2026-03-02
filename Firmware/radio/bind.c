@@ -19,6 +19,12 @@
 #include "freq_hopping.h"   // fhop_init()
 #include "bind.h"
 
+// 复用射频驱动内部的收发缓冲区（已在 XDATA，252字节）
+// 对频模式与 TDM 模式互斥，radio_buffer 在对频期间空闲，可安全覆盖使用
+// 避免额外申请 ~77 字节 XDATA，防止 Si1060（XDATA 仅 2KB）溢出
+extern __xdata uint8_t radio_buffer[];
+#define bind_buf (*((__xdata struct bind_packet *)(radio_buffer)))
+
 // ─── 模块级状态变量（__pdata 存于 PDATA，减少 IDATA 压力）─────────────────────
 
 __pdata enum BindState bind_state;       // 当前对频状态（外部可读）
@@ -38,9 +44,6 @@ static __pdata uint16_t tx_last_tick;
 // LED 闪烁计时
 static __pdata uint16_t led_last_tick;
 static __pdata bool     led_state;
-
-// 对频包收发缓冲区（必须在 __xdata，radio_transmit/receive 要求）
-static __xdata struct bind_packet bind_buf;
 
 // ─── 内部函数前向声明 ─────────────────────────────────────────────────────────
 static void bind_enter(void);
@@ -206,11 +209,11 @@ bind_tick_send(void)
 
     // CRC 覆盖范围：magic + board_frequency + params（不含 crc 字段本身）
     crc_len      = (uint8_t)(sizeof(bind_buf) - sizeof(bind_buf.crc));
-    bind_buf.crc = crc16(crc_len, (__xdata uint8_t *)&bind_buf);
+    bind_buf.crc = crc16(crc_len, radio_buffer);
 
     // 发送（超时 50ms = 3125 ticks）
     radio_transmit((uint8_t)sizeof(bind_buf),
-                   (__xdata uint8_t *)&bind_buf,
+                   radio_buffer,
                    BIND_TX_TIMEOUT_TICKS);
 
     radio_receiver_on();    // 发完后回到接收，防止射频卡在 TX 状态
@@ -225,7 +228,7 @@ bind_tick_listen(void)
     __pdata uint16_t computed_crc;
     __pdata uint8_t  crc_len;
 
-    if (!radio_receive_packet(&rx_len, (__xdata uint8_t *)&bind_buf)) {
+    if (!radio_receive_packet(&rx_len, radio_buffer)) {
         radio_receiver_on();    // 没收到包，继续监听
         return;
     }
@@ -253,7 +256,7 @@ bind_tick_listen(void)
 
     // 校验 4：CRC16 完整性
     crc_len      = (uint8_t)(sizeof(bind_buf) - sizeof(bind_buf.crc));
-    computed_crc = crc16(crc_len, (__xdata uint8_t *)&bind_buf);
+    computed_crc = crc16(crc_len, radio_buffer);
     if (computed_crc != bind_buf.crc) {
         radio_receiver_on();
         return;
