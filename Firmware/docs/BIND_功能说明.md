@@ -8,6 +8,62 @@
 
 ---
 
+## 默认参数说明
+
+以下为本固件的出厂默认参数，两台模块出厂时 **NETID 相同（100）**，可直接上电建链。  
+若需对频，只需将从机 NETID 改为其他值，再执行对频操作即可。
+
+### 主机默认参数（ATS16=1）
+
+```
+S0:FORMAT=27
+S1:SERIAL_SPEED=57      # 串口波特率 57600
+S2:AIR_SPEED=64         # 空口速率 64kbps
+S3:NETID=100            # 网络 ID，两端必须一致才能通信
+S4:TXPOWER=20           # 发射功率 20dBm（最大）
+S5:ECC=0                # 关闭 Golay 纠错（0=关，1=开）
+S6:MAVLINK=1            # MAVLink 帧格式（0=忽略，1=使用）
+S7:OPPRESEND=0          # 机会重传（已禁用）
+S8:MIN_FREQ=433050      # 跳频最低频率 433.050 MHz
+S9:MAX_FREQ=434790      # 跳频最高频率 434.790 MHz
+S10:NUM_CHANNELS=10     # 跳频信道数
+S11:DUTY_CYCLE=100      # 占空比 100%
+S12:LBT_RSSI=0          # 先听后说门限（0=禁用）
+S13:MANCHESTER=0        # Manchester 编码（0=关）
+S14:RTSCTS=0            # 硬件流控（0=关）
+S15:MAX_WINDOW=131      # 最大发送窗口（ms）
+S16:BIND_ROLE=1         # 对频角色：1=主机
+```
+
+### 从机默认参数（ATS16=0）
+
+```
+S0:FORMAT=27
+S1:SERIAL_SPEED=57
+S2:AIR_SPEED=64
+S3:NETID=100            # 与主机相同才能建链
+S4:TXPOWER=20
+S5:ECC=0
+S6:MAVLINK=1
+S7:OPPRESEND=0
+S8:MIN_FREQ=433050
+S9:MAX_FREQ=434790
+S10:NUM_CHANNELS=10
+S11:DUTY_CYCLE=100
+S12:LBT_RSSI=0
+S13:MANCHESTER=0
+S14:RTSCTS=0
+S15:MAX_WINDOW=131
+S16:BIND_ROLE=0         # 对频角色：0=从机
+```
+
+> ⚠️ **关键说明**
+> - `S3:NETID` 两端必须完全一致，否则射频硬件层直接过滤掉对方的包，**无法建链**。
+> - `S16:BIND_ROLE` 决定对频角色，对频完成后从机的该参数**不会被主机覆盖**，永久保持 0。
+> - 其余参数（S2、S4～S15）由主机通过对频同步到从机，无需手动在从机上逐一配置。
+
+---
+
 ## 主从机角色配置
 
 对频分为**主机**和**从机**两个角色，通过参数 **S16（BIND_ROLE）** 区分：
@@ -28,7 +84,7 @@ ATI5
 输出示例（从机）：
 
 ```
-S0:FORMAT=27 S1:SERIAL_SPEED=57 S2:AIR_SPEED=64 S3:NETID=25
+S0:FORMAT=27 S1:SERIAL_SPEED=57 S2:AIR_SPEED=64 S3:NETID=100
 S4:TXPOWER=20 S5:ECC=0 S6:MAVLINK=1 ... S16:BIND_ROLE=0
 ```
 
@@ -101,7 +157,7 @@ ATZ
 
 ### 第三步：故意制造 NETID 不一致
 
-在**从机**上将 NETID 改为一个与主机不同的值（例如主机是 25，从机改成 99）：
+在**从机**上将 NETID 改为一个与主机不同的值（例如主机是 100，从机改成 99）：
 
 ```
 ATS3=99
@@ -109,7 +165,7 @@ AT&W
 ATZ
 ```
 
-此时从机 NETID=99，主机 NETID=25，双方无法正常通信（红灯慢闪）。
+此时从机 NETID=99，主机 NETID=100，双方无法正常通信（红灯慢闪）。
 
 > **说明**：对频的目的正是解决 NETID 不一致问题，所以需要先制造不一致再测试。
 
