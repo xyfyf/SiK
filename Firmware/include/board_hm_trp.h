@@ -113,7 +113,7 @@ SBIT(PIN_BIND,     SFR_P1, 7);  // 对频按键：P1.7 (Pin 8)，低电平有效
 
 // UI definitions
 #define LED_BOOTLOADER	LED_RED
-#define LED_RADIO	LED_GREEN
+#define LED_RADIO		LED_GREEN
 #define LED_ACTIVITY	LED_RED
 #define BUTTON_BOOTLOAD	PIN_CONFIG
 #define BUTTON_BIND     PIN_BIND    // 对频按键逻辑映射

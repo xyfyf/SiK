@@ -140,8 +140,8 @@ main(void)
 	pins_user_init();
 #endif
 
-	// 初始化对频模块（在 hardware_init 和 radio_init 完成后调用）
-	bind_init();
+    // 初始化对频模块（在 hardware_init 和 radio_init 完成后调用）
+    bind_init();
 
 #ifdef INCLUDE_AES
 	// Initialise Encryption

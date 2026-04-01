@@ -40,19 +40,22 @@ struct bind_packet {
 
 // 对频公共射频配置
 #define BIND_NETID                0xFFFFU   // 公共网络 ID（硬件包头过滤）
-#define BIND_AIR_SPEED            2         // 2kbps：最低速率最高灵敏度
+// 空口速率：由 bind.c 使用本机 PARAM_AIR_SPEED（与正常链路一致），不再强制 2kbps。
+#define BIND_AIR_SPEED            2         // 保留宏：历史/文档用（对频实现已不用固定 2）
 
 // 定时参数（单位：16us 的 timer2 ticks）
 // 3s 长按   = 3,000,000us / 16us = 187,500 ticks
 // 30s 超时  = 30,000,000us / 16us = 1,875,000 ticks
-// 200ms 间隔 = 200,000us / 16us = 12,500 ticks（适合 uint16_t）
 #define BIND_LONG_PRESS_TICKS     187500UL
 #define BIND_TIMEOUT_TICKS        1875000UL
-#define BIND_TX_INTERVAL_TICKS    12500U    // 发包间隔（uint16_t 可表示）
-#define BIND_LED_INTERVAL_TICKS   12500U    // LED 闪烁间隔
 
-// radio_transmit 超时：50ms = 50,000us / 16us = 3125 ticks
-#define BIND_TX_TIMEOUT_TICKS     3125U
+// 发送超时 / 发包间隔：由 bind_refresh_air_timings() 按 radio_air_rate() 运行时计算，
+// 以下常量仅作参考，不要在 bind.c 中使用。
+#define BIND_TX_TIMEOUT_TICKS_REF     37500U
+#define BIND_TX_INTERVAL_TICKS_REF    50000U
+
+// LED 闪烁间隔 200ms（纯视觉反馈，与射频无关）
+#define BIND_LED_INTERVAL_TICKS   12500U
 
 // ─── 公共接口（条件编译）──────────────────────────────────────────────────────
 #ifdef BUTTON_BIND
