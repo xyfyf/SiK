@@ -2,12 +2,14 @@
 //
 // bind.h — 一键对频功能模块头文件
 //
-// 设计逻辑：
-//   主机（BIND_ROLE=1）长按按键 → 广播本机完整参数表（param_values[]）
-//   从机（BIND_ROLE=0）长按按键 → 监听，收到合法对频包后覆盖本机参数并复位
+// 【对称对频设计】：不再区分主从机按键顺序。
+// 任意设备按键均先进入监听阶段（随机 1000ms±抖动），
+// 若监听期间收到对端包 → 采用对端参数重启（接收方）；
+// 若监听超时无包       → 切换为发送角色，广播本机参数重启（发送方）。
+// ATS16(PARAM_BIND_ROLE) 保留在参数表中但不再影响对频顺序。
 //
 // 对频公共信道（双方必须事先一致）：
-//   NETID = 0xFFFF，AIR_SPEED = 2kbps，信道 0，频段基准频率
+//   NETID = 0xFFFF，AIR_SPEED = PARAM_AIR_SPEED，信道 0，PARAM_MIN_FREQ 频点
 
 #ifndef _BIND_H_
 #define _BIND_H_
@@ -18,8 +20,8 @@
 // ─── 对频状态 ─────────────────────────────────────────────────────────────────
 enum BindState {
     BIND_STATE_IDLE      = 0,  // 正常运行，未对频
-    BIND_STATE_SENDING   = 1,  // 主机：正在广播参数
-    BIND_STATE_LISTENING = 2,  // 从机：正在监听
+    BIND_STATE_SENDING   = 1,  // 正在广播本机参数（探测超时后切入，或收到包的另一端）
+    BIND_STATE_LISTENING = 2,  // 探测/监听阶段：等待对端包，超时后自动切换为 SENDING
     BIND_STATE_SUCCESS   = 3,  // 对频成功（即将复位）
     BIND_STATE_TIMEOUT   = 4   // 对频超时，已自动退出
 };

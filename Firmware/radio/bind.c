@@ -2,14 +2,18 @@
 //
 // bind.c — 一键对频功能核心实现
 //
+// 【对称对频设计】：不再区分主从机按键顺序，任意顺序按键均可完成对频。
 // 流程：
-//   1. bind_check_button()：每次 TDM 循环调用，检测长按（3s）→ bind_enter()
-//   2. bind_enter()：停止正常 TDM，切换射频到公共配置，进入发送或监听状态
+//   1. bind_check_button()：每次 TDM 循环调用，检测下降沿 → bind_enter()
+//   2. bind_enter()：停止正常 TDM，切换射频到公共配置，进入"探测监听"阶段（LISTENING）
+//      - 随机监听时长 = 1000ms + timer2低位抖动(0~262ms)
+//      - 若在监听期间收到对端对频包 → 作为"接收方"直接采用对端参数（等效从机）
+//      - 若监听超时仍无包          → 切换为发送角色，广播本机参数（等效主机）
 //   3. bind_tick()：
-//        主机（SENDING）  → 每 200ms 广播一次 bind_packet（含完整参数表）
-//        从机（LISTENING）→ 持续接收，通过三重校验后调用 bind_on_success()
+//        LISTENING → 持续接收；超时后自动切换到 SENDING
+//        SENDING   → 每发包间隔广播一次 bind_packet；发满 5 包后自动软件复位
 //   4. bind_on_success()：写入新参数 → param_save() → LED 绿灯 1s → 软件复位
-//   5. bind_exit()：超时时恢复原有射频配置，回到正常运行
+//   5. bind_exit()：30s 总超时时恢复原有射频配置，回到正常运行
 
 #include "board.h"          // LED_RED/LED_GREEN/LED_ON/OFF, BUTTON_BIND, RSTSRC 等
 #include "radio.h"          // radio_transmit/receive/configure 等
@@ -47,10 +51,15 @@ static __pdata uint16_t timeout_last_tick;
 // 主机发包间隔计时
 static __pdata uint16_t tx_last_tick;
 
-// 主机已发包计数：发够 BIND_MASTER_TX_COUNT 包后自动软件复位
-// 确保从机有充足时间收到至少一包并完成参数保存，主机随后也重启生效
+// 已发包计数：发够 BIND_MASTER_TX_COUNT 包后自动软件复位
+// 确保接收方有充足时间收到至少一包并完成参数保存，发送方随后也重启生效
 static __pdata uint8_t  bind_sent_count;
 #define BIND_MASTER_TX_COUNT  5   // 发 5 包后复位（间隔由 bind_runtime_tx_interval 决定）
+
+// 探测监听窗口截止时长（相对 timeout_acc_ticks）：
+// 在此时长内未收到对端包则切换为发送角色；
+// 时长 = 1000ms + timer2低位随机抖动，防止同时按键时双方均转为发送而碰撞
+static __pdata uint32_t discover_end_ticks;
 
 // 本次对频会话的发送超时/发包间隔（tick 单位，16µs/tick）
 // 由 bind_refresh_air_timings() 在 bind_enter() 中根据 radio_air_rate() 计算填入
@@ -166,13 +175,16 @@ bind_mode_active(void)
 static void
 bind_enter(void)
 {
-    // 根据 BIND_ROLE 参数决定角色
-    // ATS16=1 → 主机（发送参数）；ATS16=0（默认）→ 从机（接收参数）
-    if (param_get(PARAM_BIND_ROLE) == 1) {
-        bind_state = BIND_STATE_SENDING;
-    } else {
-        bind_state = BIND_STATE_LISTENING;
-    }
+    // 【对称对频】：不再依赖 ATS16(PARAM_BIND_ROLE) 决定初始角色。
+    // 所有设备一律先进入"探测监听"阶段（BIND_STATE_LISTENING），
+    // 随机监听时长到期仍未收到对端包时，才在 bind_tick_listen() 中自动切换为发送。
+    // 这样无论哪台设备先按键都能正确配对，无需预先规定主从顺序。
+    bind_state = BIND_STATE_LISTENING;
+
+    // 随机探测监听时长：1000ms（62500 ticks）+ timer2 低 14 位（0~16383 ticks，约 0~262ms）
+    // 即使两台设备同时按键，两者的时钟相位差异会让切换时刻错开 0~262ms，
+    // 足以让其中一台先切换到发送，另一台收到包后完成对频
+    discover_end_ticks = 62500UL + (uint32_t)(timer2_tick() & 0x3FFF);
 
     // 初始化对频计时器
     timeout_acc_ticks = 0;
@@ -337,13 +349,22 @@ bind_tick_send(void)
 }
 
 // ─── bind_tick_listen ────────────────────────────────────────────────────────
-// 从机接收逻辑：持续监听，收到包后进行三重校验，通过则覆盖参数并复位
+// 探测/接收逻辑：先随机监听，超时后切换为发送角色；监听期间收到包则立即完成对频
 static void
 bind_tick_listen(void)
 {
     __pdata uint8_t  rx_len;
     __pdata uint16_t computed_crc;
     __pdata uint8_t  crc_len;
+
+    // 探测窗口到期：本机先切换为发送角色，广播本机参数
+    // 对端若仍在监听阶段（对方按键晚于本机），将会收到本机广播并完成对频
+    if (timeout_acc_ticks >= discover_end_ticks) {
+        bind_state      = BIND_STATE_SENDING;
+        tx_last_tick    = timer2_tick();    // 重置发送间隔计时
+        bind_sent_count = 0;
+        return;
+    }
 
     if (!radio_receive_packet(&rx_len, radio_buffer)) {
         // 不要调用 radio_receiver_on()！
